@@ -481,6 +481,56 @@ async function readOutput(target, lines = 30, clean = true) {
 }
 
 /**
+ * Direct 2D Screen Buffer Extraction from Windows Terminal CONOUT$ via IPC.
+ */
+async function readScreen(target) {
+  const pane = resolvePane(target);
+  if (!pane) {
+    throw new Error(`Pane '${target}' not found in registry.`);
+  }
+  const paneId = pane.id;
+
+  if (pane.ipc_port) {
+    try {
+      const res = await ipcRequest(paneId, "GET", "/screen", null, 2500);
+      return {
+        ok: true,
+        pane_id: paneId,
+        cols: res.cols || 80,
+        rows: res.rows || 25,
+        cursor: res.cursor || { x: 0, y: 0 },
+        lines: res.lines || [],
+        source: "ipc_screen",
+      };
+    } catch (e) {
+      // IPC failed, fallback to flight log
+    }
+  }
+
+  // Fallback: read flight log tail
+  if (pane.flight_log && fs.existsSync(pane.flight_log)) {
+    try {
+      const raw = fs.readFileSync(pane.flight_log, "utf8");
+      const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      const exitMsg = pane.exit_code !== undefined ? ` (exit code: ${pane.exit_code})` : "";
+      return {
+        ok: true,
+        pane_id: paneId,
+        cols: 80,
+        rows: Math.min(lines.length, 30),
+        cursor: { x: 0, y: lines.length },
+        lines: lines.slice(-30),
+        source: `flight_log${exitMsg}`,
+      };
+    } catch (e) {}
+  }
+
+  const exitMsg = pane.exit_code !== undefined ? ` (code ${pane.exit_code})` : "";
+  const logMsg = pane.flight_log ? ` See flight log: ${pane.flight_log}` : "";
+  throw new Error(`Cannot read screen: pane '${paneId}' has no active IPC port and no log buffer${exitMsg}.${logMsg}`);
+}
+
+/**
  * Wait for a regex pattern in the output stream with timeout.
  */
 async function waitForPattern(target, pattern, timeoutMs = 15000) {
@@ -1030,6 +1080,7 @@ module.exports = {
   sendInput,
   sendKey,
   readOutput,
+  readScreen,
   waitForPattern,
   waitForIdle,
   suspendPane,

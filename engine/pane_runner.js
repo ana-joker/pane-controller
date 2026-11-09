@@ -306,6 +306,13 @@ async function main() {
     } catch (_) {}
   }
 
+  let forceFlushAt = 0;
+
+  // Mask common terminal spinner glyphs and progress characters when diffing frames
+  function normalizeForDiff(s) {
+    return s.replace(/[\u2800-\u28FF⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏○◐●⌛⏳]/g, " ");
+  }
+
   function pollScreen() {
     const snap = cio.readScreen();
     if (!snap) return;
@@ -313,10 +320,20 @@ async function main() {
     const key = snap.lines.join("\n");
     const now = Date.now();
 
+    const normalizedKey = normalizeForDiff(key);
+    const normalizedLastKey = normalizeForDiff(lastKey);
+
     if (key !== lastKey) {
       lastKey = key;
       lastActivityTimestamp = now;
-      settleAt = now + 300; // Screen is mutating; settle timer reset
+
+      // Only push settle timer into future if real textual content changed, not just a spinner tick
+      if (normalizedKey !== normalizedLastKey) {
+        settleAt = now + 300;
+        if (!forceFlushAt) {
+          forceFlushAt = now + 1000; // Cap continuous streaming wait to 1000ms max
+        }
+      }
 
       // Fire active waitListeners on live screen matching
       for (let i = waitListeners.length - 1; i >= 0; i--) {
@@ -326,8 +343,13 @@ async function main() {
           waitListeners.splice(i, 1);
         }
       }
-    } else if (settleAt && now >= settleAt) {
-      // Screen settled for 300ms: commit new non-duplicate rows to log and outputBuffer
+    }
+
+    const shouldSettle = settleAt && now >= settleAt;
+    const shouldForceFlush = forceFlushAt && now >= forceFlushAt;
+
+    if (shouldSettle || shouldForceFlush) {
+      // Screen settled or hit 1000ms force-flush timeout: commit new non-duplicate rows to log and outputBuffer
       const seen = new Set(committed);
       for (const l of snap.lines) {
         const trimmed = l.trimEnd();
@@ -337,6 +359,11 @@ async function main() {
       }
       committed = snap.lines.map((l) => l.trimEnd());
       settleAt = 0;
+      if (shouldForceFlush) {
+        forceFlushAt = now + 1000; // Reschedule next force-flush interval if mutation continues
+      } else {
+        forceFlushAt = 0;
+      }
     }
   }
 
@@ -474,12 +501,25 @@ async function main() {
       return;
     }
 
-    // 5.3 GET /output - Scrape buffer with Clean Mode
+    // 5.3 GET /output - Scrape buffer with Clean Mode & Live Hybrid Viewport
     if (req.method === "GET" && pathname === "/output") {
       const linesReq = parseInt(url.searchParams.get("lines") || "30", 10);
       const cleanMode = url.searchParams.get("clean") !== "false";
+      const liveOnly = url.searchParams.get("live") === "true";
 
-      let source = outputBuffer.length > 0 ? outputBuffer : latestScreen.lines;
+      const snap = cio.readScreen() || latestScreen;
+      const screenLines = (snap.lines || []).map((l) => l.trimEnd()).filter((l) => l.length > 0);
+
+      let source;
+      if (liveOnly) {
+        source = screenLines;
+      } else {
+        // Hybrid: take historical committed lines, and merge any uncommitted lines currently visible on screen
+        const seen = new Set(outputBuffer);
+        const pendingOnScreen = screenLines.filter((l) => !seen.has(l));
+        source = outputBuffer.concat(pendingOnScreen);
+      }
+
       let sliced = source.slice(-linesReq);
       if (cleanMode) {
         sliced = cleanTerminalLines(sliced);
@@ -490,6 +530,7 @@ async function main() {
         lines: sliced,
         total_buffered: outputBuffer.length,
         clean_mode: cleanMode,
+        live_screen_lines: screenLines.length,
         last_activity_age_seconds: Math.round((Date.now() - lastActivityTimestamp) / 1000),
       });
       return;

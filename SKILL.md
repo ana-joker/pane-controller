@@ -148,7 +148,8 @@ python C:\Users\ahmed\.gemini\skills\pane-controller\scripts\pane_ctl.py clear
 | **Split** | `python pane_ctl.py split "<cmd>" [--title "<title>"] [--split vertical\|horizontal] [--size 0.45]` | Launch a new split pane beside current session |
 | **Send Text** | `python pane_ctl.py send <pane_id> "<text>" [--submit] [--paste]` | Inject text into pane stdin (`--submit` sends Enter) |
 | **Send Key** | `python pane_ctl.py key <pane_id> <key_name>` | Inject virtual key (`Enter`, `Ctrl+C`, `Esc`, `Tab`, `Up`, `Down`) |
-| **Read Output** | `python pane_ctl.py read <pane_id> [--lines 30] [--raw]` | Scrape buffer lines (`--raw` preserves ANSI escapes) |
+| **Read Output** | `python pane_ctl.py read <pane_id> [--lines 30] [--raw] [--live]` | Scrape hybrid buffer lines (`--live` grabs screen viewport) |
+| **Read Screen** | `python pane_ctl.py screen <pane_id>` | Direct 2D Win32 console buffer read (`CONOUT$`) |
 | **Wait Pattern** | `python pane_ctl.py wait <pane_id> "<pattern>" [--timeout 15000]` | Block until regex pattern appears in output stream |
 | **Wait Idle** | `python pane_ctl.py wait_idle <pane_id> [--idle 1500] [--timeout 30000]` | Block until output is silent for N ms |
 | **Kill** | `python pane_ctl.py kill <pane_id>` | Terminate pane and collapse Windows Terminal split |

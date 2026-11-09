@@ -9,7 +9,8 @@ Usage:
     python pane_ctl.py split "<command>" [--title "<title>"] [--split vertical|horizontal] [--size 0.45]
     python pane_ctl.py send <pane_id> "<text>" [--submit] [--paste]
     python pane_ctl.py key <pane_id> <key_name> (Enter, Ctrl+C, Esc, Tab, Up, Down)
-    python pane_ctl.py read <pane_id> [--lines 30] [--raw]
+    python pane_ctl.py read <pane_id> [--lines 30] [--raw] [--live|--screen]
+    python pane_ctl.py screen <pane_id>
     python pane_ctl.py wait <pane_id> "<regex_pattern>" [--timeout 15000]
     python pane_ctl.py wait_idle <pane_id> [--idle 1500] [--timeout 30000]
     python pane_ctl.py kill <pane_id>
@@ -94,12 +95,18 @@ def main():
 
     if cmd in ("read", "output", "scrape") and len(sys.argv) >= 3:
         pane_id = sys.argv[2]
+        if "--screen" in sys.argv or "--live" in sys.argv:
+            sys.exit(execute_pane_controller({"action": "read_screen", "pane_id": pane_id}))
         lines = 30
         clean = "--raw" not in sys.argv
         for idx, a in enumerate(sys.argv):
             if a == "--lines" and idx + 1 < len(sys.argv):
                 lines = int(sys.argv[idx + 1])
         sys.exit(execute_pane_controller({"action": "read_output", "pane_id": pane_id, "lines": lines, "clean": clean}))
+
+    if cmd in ("screen", "live") and len(sys.argv) >= 3:
+        pane_id = sys.argv[2]
+        sys.exit(execute_pane_controller({"action": "read_screen", "pane_id": pane_id}))
 
     if cmd == "wait" and len(sys.argv) >= 4:
         pane_id = sys.argv[2]
