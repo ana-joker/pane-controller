@@ -1,0 +1,40 @@
+# Runtime State & Dynamic Panes
+data/panes/
+data/pane_registry.json
+engine/pane_registry.json
+data/*.json
+!data/pane_registry.example.json
+
+# Flight Logs & Buffers
+*.log
+flight.log
+transcript_full.jsonl
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Bun & Node.js
+node_modules/
+bun.lockb
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Windows System Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Editor / IDE metadata
+.vscode/
+.idea/
+*.swp
+*.swo
